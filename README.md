@@ -11,8 +11,39 @@
 ## 环境要求
 
 - Node.js >= 18
-- 已安装 `tesseract` CLI
+- 已安装 `tesseract` CLI（可用安装脚本自动安装）
 - 语言包包含：`chi_sim`、`eng`
+
+## 一键安装（开箱即用）
+
+### macOS / Linux
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/fubaoiscat/xhs-image-note-extractor/main/scripts/install-skill.sh" | bash
+```
+
+默认会安装 **最新 release tag**。
+
+### Windows PowerShell
+
+```powershell
+irm "https://raw.githubusercontent.com/fubaoiscat/xhs-image-note-extractor/main/scripts/install-skill.ps1" | iex
+```
+
+默认会安装 **最新 release tag**。
+
+### 指定版本（推荐生产使用）
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/fubaoiscat/xhs-image-note-extractor/main/scripts/install-skill.sh" | \
+  XHS_SKILL_REF=v0.1.0 bash
+```
+
+安装脚本会自动：
+
+- 下载 skill 到 `~/.claude/skills/xhs-image-note-extractor`
+- 根据系统包管理器安装 `tesseract`
+- 校验 `chi_sim` 与 `eng` 语言数据是否可用
 
 ## 快速开始
 
