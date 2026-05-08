@@ -5,6 +5,7 @@ REPO="${XHS_SKILL_REPO:-fubaoiscat/xhs-image-note-extractor}"
 REF="${XHS_SKILL_REF:-latest}"
 TARGET_DIR="${XHS_SKILL_TARGET:-$HOME/.claude/skills/xhs-image-note-extractor}"
 SKIP_TESSERACT_INSTALL=0
+SKIP_NODE_INSTALL=0
 
 log() {
   printf '[xhs-installer] %s\n' "$1"
@@ -23,6 +24,7 @@ Options:
   --repo <owner/repo>      GitHub repository (default: fubaoiscat/xhs-image-note-extractor)
   --ref <branch|tag|sha>   Git ref to download (default: latest release tag)
   --target <path>          Install path (default: ~/.claude/skills/xhs-image-note-extractor)
+  --skip-node              Skip Node.js install step (default installer uses 22 LTS)
   --skip-tesseract         Skip tesseract install step
   -h, --help               Show this help
 
@@ -79,6 +81,114 @@ install_tesseract_linux() {
   fi
   err "Unsupported Linux package manager. Install tesseract manually."
   exit 1
+}
+
+node_major() {
+  node -p 'process.versions.node.split(".")[0]' 2>/dev/null || true
+}
+
+install_node22_macos() {
+  if ! command -v brew >/dev/null 2>&1; then
+    err "Homebrew is required on macOS. Install from https://brew.sh first."
+    exit 1
+  fi
+  log "Installing Node.js 22 LTS on macOS via Homebrew..."
+  brew install node@22
+
+  # node@22 may be keg-only; prepend PATH for current session.
+  prefix="$(brew --prefix node@22 2>/dev/null || true)"
+  if [ -n "$prefix" ] && [ -x "$prefix/bin/node" ]; then
+    export PATH="$prefix/bin:$PATH"
+  fi
+}
+
+install_node22_linux() {
+  log "Installing Node.js 22 LTS on Linux..."
+  if command -v apt-get >/dev/null 2>&1; then
+    if [ "$(id -u)" -eq 0 ]; then
+      curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+    elif command -v sudo >/dev/null 2>&1; then
+      curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+    else
+      err "Need sudo/root to configure NodeSource for Node.js 22."
+      exit 1
+    fi
+    run_as_root apt-get install -y nodejs
+    return
+  fi
+  if command -v dnf >/dev/null 2>&1; then
+    if [ "$(id -u)" -eq 0 ]; then
+      curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+    elif command -v sudo >/dev/null 2>&1; then
+      curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo -E bash -
+    else
+      err "Need sudo/root to configure NodeSource for Node.js 22."
+      exit 1
+    fi
+    run_as_root dnf install -y nodejs
+    return
+  fi
+  if command -v yum >/dev/null 2>&1; then
+    if [ "$(id -u)" -eq 0 ]; then
+      curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+    elif command -v sudo >/dev/null 2>&1; then
+      curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo -E bash -
+    else
+      err "Need sudo/root to configure NodeSource for Node.js 22."
+      exit 1
+    fi
+    run_as_root yum install -y nodejs
+    return
+  fi
+  if command -v pacman >/dev/null 2>&1; then
+    if run_as_root pacman -Sy --noconfirm nodejs-lts-jod; then
+      return
+    fi
+    if run_as_root pacman -Sy --noconfirm nodejs-lts; then
+      return
+    fi
+    run_as_root pacman -Sy --noconfirm nodejs
+    return
+  fi
+  err "Unsupported Linux package manager for Node.js install."
+  exit 1
+}
+
+ensure_node() {
+  if command -v node >/dev/null 2>&1; then
+    major="$(node_major)"
+    if [ -n "$major" ] && [ "$major" -ge 18 ]; then
+      log "Node.js already installed: $(node --version)"
+      return
+    fi
+  fi
+
+  case "$(uname -s)" in
+    Darwin)
+      install_node22_macos
+      ;;
+    Linux)
+      install_node22_linux
+      ;;
+    MINGW*|MSYS*|CYGWIN*)
+      err "Windows detected. Please run scripts/install-skill.ps1 in PowerShell."
+      exit 1
+      ;;
+    *)
+      err "Unsupported OS: $(uname -s)"
+      exit 1
+      ;;
+  esac
+
+  if ! command -v node >/dev/null 2>&1; then
+    err "Node.js install completed but 'node' is not in PATH."
+    exit 1
+  fi
+  major="$(node_major)"
+  if [ -z "$major" ] || [ "$major" -lt 18 ]; then
+    err "Node.js version is below 18: $(node --version 2>/dev/null || echo unknown)"
+    exit 1
+  fi
 }
 
 ensure_tesseract() {
@@ -198,6 +308,10 @@ while [ "$#" -gt 0 ]; do
       TARGET_DIR="$2"
       shift 2
       ;;
+    --skip-node)
+      SKIP_NODE_INSTALL=1
+      shift
+      ;;
     --skip-tesseract)
       SKIP_TESSERACT_INSTALL=1
       shift
@@ -216,6 +330,10 @@ done
 
 resolve_ref
 download_skill
+
+if [ "$SKIP_NODE_INSTALL" -eq 0 ]; then
+  ensure_node
+fi
 
 if [ "$SKIP_TESSERACT_INSTALL" -eq 0 ]; then
   ensure_tesseract

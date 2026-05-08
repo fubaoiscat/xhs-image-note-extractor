@@ -10,7 +10,7 @@
 
 ## 环境要求
 
-- Node.js >= 18
+- 推荐 Node.js 22 LTS（最低 >= 18；可用安装脚本自动安装）
 - 已安装 `tesseract` CLI（可用安装脚本自动安装）
 - 语言包包含：`chi_sim`、`eng`
 
@@ -42,6 +42,7 @@ curl -fsSL "https://raw.githubusercontent.com/fubaoiscat/xhs-image-note-extracto
 安装脚本会自动：
 
 - 下载 skill 到 `~/.claude/skills/xhs-image-note-extractor`
+- 优先安装 Node.js 22 LTS，并校验版本 >= 18
 - 根据系统包管理器安装 `tesseract`
 - 校验 `chi_sim` 与 `eng` 语言数据是否可用
 

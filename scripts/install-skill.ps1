@@ -2,6 +2,7 @@ param(
   [string]$Repo = "fubaoiscat/xhs-image-note-extractor",
   [string]$Ref = "latest",
   [string]$Target = "$HOME\.claude\skills\xhs-image-note-extractor",
+  [switch]$SkipNode,
   [switch]$SkipTesseract
 )
 
@@ -88,6 +89,48 @@ function Ensure-Tesseract {
   throw "No supported package manager found (winget/choco/scoop). Install tesseract manually."
 }
 
+function Get-NodeMajor {
+  if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    return $null
+  }
+  try {
+    return [int](& node -p "process.versions.node.split('.')[0]")
+  } catch {
+    return $null
+  }
+}
+
+function Ensure-Node {
+  $major = Get-NodeMajor
+  if ($major -and $major -ge 18) {
+    Write-Info "Node.js already installed: $(& node --version)"
+    return
+  }
+
+  if (Get-Command winget -ErrorAction SilentlyContinue) {
+    Write-Info "Installing Node.js 22 LTS via winget..."
+    try {
+      winget install --exact --id OpenJS.NodeJS.22 --accept-source-agreements --accept-package-agreements
+    } catch {
+      Write-Info "OpenJS.NodeJS.22 not available. Falling back to OpenJS.NodeJS.LTS..."
+      winget install --exact --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+    }
+  } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
+    Write-Info "Installing Node.js via choco..."
+    choco install -y nodejs-lts
+  } elseif (Get-Command scoop -ErrorAction SilentlyContinue) {
+    Write-Info "Installing Node.js via scoop..."
+    scoop install nodejs-lts
+  } else {
+    throw "No supported package manager found (winget/choco/scoop) for Node.js install."
+  }
+
+  $major = Get-NodeMajor
+  if (-not $major -or $major -lt 18) {
+    throw "Node.js install did not satisfy >=18. Current: $(& node --version 2>$null)"
+  }
+}
+
 function Verify-Languages {
   $langs = & tesseract --list-langs 2>$null
   if ($langs -notcontains "chi_sim") {
@@ -122,6 +165,10 @@ try {
   }
   Move-Item -Path $src.FullName -Destination $Target
   Write-Info "Skill installed to: $Target"
+
+  if (-not $SkipNode) {
+    Ensure-Node
+  }
 
   if (-not $SkipTesseract) {
     Ensure-Tesseract
